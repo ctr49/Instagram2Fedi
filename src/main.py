@@ -19,11 +19,13 @@ default_settings = {
     "user-name": "",
     "user-password": None,
     "token": None,
-    "check-interval": 3600,
+    "check-interval-loop": 3600,
+    "check-interval-oneshot": 3300,
     "post-interval": 60,
     "fetch-count" : 10,
     "carousel-limit": 4,
     "scheduled": False,
+    "supports-idempotency-key": False,
     "verbose": False
 }
 
@@ -53,13 +55,20 @@ mastodon_instance = settings["instance"]
 mastodon_token = settings["token"]
 
 post_limit = settings["fetch-count"]
-time_interval_sec = settings["check-interval"] #1d
 post_interval =  settings["post-interval"]#1m
 
 using_mastodon = settings["carousel-limit"] > 0;
 mastodon_carousel_size = settings["carousel-limit"]
 scheduled = settings["scheduled"]
 
+if settings.get("check-interval") is not None:
+    time_interval_sec = settings["check-interval"]
+elif scheduled:
+    time_interval_sec = settings["check-interval-oneshot"]
+else:
+    time_interval_sec = settings["check-interval-loop"]
+
+supports_idempotency_key = settings["supports-idempotency-key"]
 
 user = {
     "name": settings["user-name"],
@@ -75,7 +84,7 @@ mastodon = Mastodon(
     # api_base_url = 'https://pixelfed.tokyo/'
 )
 while True:
-    get_new_posts(mastodon, mastodon_carousel_size, post_limit, id_filename, using_mastodon, mastodon_carousel_size, post_interval, fetched_user, user)
+    get_new_posts(mastodon, mastodon_carousel_size, post_limit, id_filename, using_mastodon, mastodon_carousel_size, post_interval, fetched_user, user, scheduled, time_interval_sec, supports_idempotency_key)
     if scheduled:
         break
     time.sleep(time_interval_sec)

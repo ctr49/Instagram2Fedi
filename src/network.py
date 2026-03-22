@@ -36,7 +36,7 @@ def get_image(url):
         return response.content
     except Exception as e:
 
-        print(Fore.RED + "💥 > Failed to download image. \n", e)
+        print(Fore.RED + "💥 > Failed to download image.\n", e)
         print(Style.RESET_ALL)
         print(datetime.datetime.now())
 
@@ -56,7 +56,7 @@ def upload_image_to_mastodon(url, mastodon):
         print(Style.RESET_ALL)
         print(datetime.datetime.now())
 
-def toot(urls, title, mastodon, fetched_user ):
+def toot(urls, title, mastodon, fetched_user, idempotency_key=None):
     try:
         print(Fore.YELLOW + "🐘 > Creating Toot...", title)
         print(Style.RESET_ALL)
@@ -68,20 +68,33 @@ def toot(urls, title, mastodon, fetched_user ):
         post_text = post_text[0:1000]
         if(ids):
             print(ids)
-            mastodon.status_post(post_text, media_ids = ids)
+            if idempotency_key:
+                mastodon.status_post(post_text, media_ids = ids, idempotency_key = idempotency_key)
+            else:
+                mastodon.status_post(post_text, media_ids = ids)
 
     except Exception as e:
         print(Fore.RED + "😿 > Failed to create toot \n", e)
         print(Style.RESET_ALL)
         print(datetime.datetime.now())
 
-def get_new_posts(mastodon,  mastodon_carousel_size, post_limit, already_posted_path, using_mastodon, carousel_size, post_interval, fetched_user, user):
+def get_new_posts(mastodon, mastodon_carousel_size, post_limit, already_posted_path, using_mastodon, carousel_size, post_interval, fetched_user, user, scheduled=False, check_interval=None, supports_idempotency_key=False):
     # fetching user profile to get new posts
     profile = get_instagram_user(user, fetched_user)
     # get list of all posts
     posts = profile.get_posts()
     stupidcounter = 0
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    if scheduled and check_interval:
+        cutoff = now - datetime.timedelta(seconds=check_interval)
+    else:
+        cutoff = None
+
     for post in posts:
+        if cutoff and post.date_utc < cutoff:
+            break
+
         url_arr = try_to_get_carousel([post.url], post)
         # checking only `post_limit` last posts
         if stupidcounter < post_limit:
@@ -93,12 +106,23 @@ def get_new_posts(mastodon,  mastodon_carousel_size, post_limit, already_posted_
                 continue
             print("Posting... ", post.url)
             print(datetime.datetime.now())
+
+            idempotency_key = None
+            if supports_idempotency_key:
+                idempotency_key = "ig-media:" + str(post.mediaid)
+
             if using_mastodon:
                 urls_arr = split_array(url_arr, carousel_size)
+                chunk_counter = 0
                 for urls in urls_arr:
-                    toot(urls, post.caption, mastodon, fetched_user)
+                    chunk_counter += 1
+                    chunk_idempotency_key = idempotency_key
+                    if idempotency_key and len(urls_arr) > 1:
+                        chunk_idempotency_key = idempotency_key + ":chunk-" + str(chunk_counter)
+                    toot(urls, post.caption, mastodon, fetched_user, chunk_idempotency_key)
             else:
-                toot(url_arr, post.caption, mastodon, fetched_user)
+                toot(url_arr, post.caption, mastodon, fetched_user, idempotency_key)
+
             mark_as_posted(str(post.mediaid), already_posted_path)
             time.sleep(post_interval)
         else:

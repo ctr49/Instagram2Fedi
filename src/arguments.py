@@ -22,6 +22,11 @@ if os.environ.get("I2M_VERBOSE") == "True": # verbose output
 else:
     verbose_output = False
 
+if os.environ.get("I2M_SUPPORTS_IDEMPOTENCY_KEY") == "True":
+    supports_idempotency_key = True
+else:
+    supports_idempotency_key = False
+
 if verbose_output:
     print('instagram', instagram_user)
     print('instagram', instance)
@@ -71,6 +76,9 @@ def flags(args, defaults):
         elif (args[count] == "--verbose"):
             defaults["verbose"] = True
             count -= 1
+        elif (args[count] == "--supports-idempotency-key"):
+            defaults["supports-idempotency-key"] = True
+            count -= 1
 
         else:
             print(Fore.RED + '❗ -> Wrong Argument Name!...')
@@ -96,6 +104,7 @@ def process_arguments(args, defaults):
     defaults["carousel-limit"] = int(use_mastodon) if use_mastodon != '' and use_mastodon else None
     defaults["scheduled"] = bool(scheduled_run) if scheduled_run else False
     defaults["verbose"] = bool(verbose_output) if verbose_output else False
+    defaults["supports-idempotency-key"] = bool(supports_idempotency_key) if supports_idempotency_key else False
     #print(Fore.RED + '❗ -> Missing Argument ')
     #print(Style.RESET_ALL)
     #print(datetime.datetime.now())
